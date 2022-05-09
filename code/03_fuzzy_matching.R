@@ -32,8 +32,7 @@ if(RUN_FROM_CONSOLE){
   args <- commandArgs(TRUE)
   DATA_DIR = args[1]
 } else{
-  #DATA_DIR = "C:/Users/Austin Paralegal/Dropbox/qss20_finalproj_rawdata/summerwork"
-  DATA_DIR = "~/Dropbox (Dartmouth College)/qss20_finalproj_rawdata/summerwork"
+  DATA_DIR = "~/Dropbox (Dartmouth College)/h2a_all_data/summerwork"
 }
 
 
@@ -387,6 +386,12 @@ fuzzy_matching("WA", jobs_df = approved_deduped_formatch, investigations_df = in
 for (state in all_states_keep) {
   fuzzy_matching(state, jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
 }
+
+investigations_deduped_formatch %>%
+  filter(st_cd == "OH")
+
+View(investigations_deduped_formatch)
+
 
 ##################
 
