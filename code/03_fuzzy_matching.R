@@ -382,15 +382,11 @@ all_states_keep = setdiff(all_states_both, c("PR", "AK", "RI")) # remove ones wi
 
 ###################
 ## some debugging
-fuzzy_matching("TX", jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
+fuzzy_matching("WA", jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
 
 for (state in all_states_keep) {
   fuzzy_matching(state, jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
 }
-
-approved_deduped_formatch %>%
-  filter(state_formatch == "LA")
-
 
 ##################
 
