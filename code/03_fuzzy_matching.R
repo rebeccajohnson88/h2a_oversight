@@ -7,6 +7,14 @@
 ##########################
 # Packages and Imports
 ##########################
+install.packages("tidyverse", lib = "/Users/camguage/Library/R/4.0/library")
+install.packages("stringr", lib = "/Users/camguage/Library/R/4.0/library")
+install.packages("fastLink", lib = "/Users/camguage/Library/R/4.0/library")
+install.packages("readr", lib = "/Users/camguage/Library/R/4.0/library")
+install.packages("data.table", lib = "/Users/camguage/Library/R/4.0/library")
+install.packages("splitstackshape", lib = "/Users/camguage/Library/R/4.0/library")
+install.packages("tidyr", lib = "/Users/camguage/Library/R/4.0/library")
+install.packages("here", lib = "/Users/camguage/Library/R/4.0/library")
 
 library(dplyr)
 library(stringr)
@@ -15,14 +23,17 @@ library(readr)
 library(data.table)
 library(splitstackshape)
 library(tidyr)
+library(here)
+
+here()
 
 RUN_FROM_CONSOLE = FALSE
 if(RUN_FROM_CONSOLE){
   args <- commandArgs(TRUE)
   DATA_DIR = args[1]
 } else{
-  DATA_DIR = "C:/Users/Austin Paralegal/Dropbox/qss20_finalproj_rawdata/summerwork"
-  #DATA_DIR = "~/Dropbox (Dartmouth College)/qss20_finalproj_rawdata/summerwork"
+  #DATA_DIR = "C:/Users/Austin Paralegal/Dropbox/qss20_finalproj_rawdata/summerwork"
+  DATA_DIR = "~/Dropbox (Dartmouth College)/qss20_finalproj_rawdata/summerwork"
 }
 
 
@@ -82,15 +93,15 @@ generate_save_matches <- function(dbase1, dbase2, matchVars, string_threshold){
                           partial.match = matchVars,
                           verbose = TRUE,
                           cut.a = string_threshold)
-  return(matches.out)
+  return(matches.out) # this is a list
   
 }
 
 ## function to merge matched objects with each other
 merge_matches <- function(jobs_formerge, investigations_formerge, match_object){
   
-  merged_data = merge(jobs_formerge, 
-                      match_object$matches,
+  merged_data = merge(as.data.frame(jobs_formerge), 
+                      as.data.frame(match_object$matches),
                       by.x = "index",
                       by.y = "inds.a",
                       all.x = TRUE) %>%
@@ -109,6 +120,8 @@ merge_matches <- function(jobs_formerge, investigations_formerge, match_object){
 # load in h2a data
 h2a <- read.csv("intermediate/h2a_combined_2014-2021.csv")
 
+h2a <- h2a[sample(nrow(h2a), 1000), ]
+
 # get a list of applicable NAICS codes
 h2a_NAICS <- read.csv("intermediate/h2a_combined_2014-2021_preserveallcols.csv") %>%
   mutate(as.character(NAICS_CODE)) %>%
@@ -117,6 +130,10 @@ h2a_NAICS <- read.csv("intermediate/h2a_combined_2014-2021_preserveallcols.csv")
 
 # load in investigations/violations data
 investigations <- fread("raw/enforcement_registration20210720.csv")
+
+investigations <- investigations[sample(nrow(investigations), 1000), ]
+
+
 
 
 ################
@@ -129,24 +146,12 @@ h2a$status_cleaned = status
 
 # filter to applications that have received certification or partial certification
 approved_only <- h2a %>%
-  filter(status_cleaned == "- CERTIFICATION" | status_cleaned == "- PARTIAL CERTIFICATION") %>%
   filter(EMPLOYER_NAME != "") %>%
   mutate(state_formatch = ifelse(EMPLOYER_STATE == "", 
                                  WORKSITE_STATE, EMPLOYER_STATE)) # typically use employer state but worksite state if missing
 
-sprintf("After filtering to approved only and non-missing names, we go from %s rows to %s rows",
-        nrow(h2a),
-        nrow(approved_only))
-
-# filtering to H2a, FLSA, MSPA with a NAICS code applicable to agriculture or H2A program
-investigations_filtered <- investigations %>%
-  filter((`Registration Act` == "H2A" | `Registration Act` == "FLSA" | `Registration Act` == "MSPA") & 
-           (str_detect(naic_cd, "^11") | naic_cd %in% h2a_NAICS$NAICS_CODE))
-
-sprintf("After filtering to H2A, FLSA, and MSPA investigations with applicable NAICS codes only, we go from %s rows to %s rows",
-        nrow(investigations),
-        nrow(investigations_filtered))
-
+# used to filter on registration act and naics code, keeping this line so investigations_filtered runs throughout the rest of the script
+investigations_filtered <- investigations
 
 # make new "name" columns for the cleaned versions of the names
 emp_name_app = unlist(lapply(approved_only$EMPLOYER_NAME, clean_names))
@@ -237,7 +242,7 @@ test <- approved_deduped_clean %>%
 table(test$is_same_id) # all are TRUE,this was successful
 
 # save before we filter out duplicates pre match
-saveRDS(approved_deduped_clean, "intermediate/approved_only_pre_deduping.RDS")
+saveRDS(approved_deduped_clean, "intermediate/approved_only_pre_deduping_1000.RDS")
 
 set.seed(1)
 
@@ -321,7 +326,7 @@ test <- investigations_deduped_clean %>%
 table(test$is_same_id) # all are TRUE,this was successful
 
 # save before we filter out duplicates
-saveRDS(investigations_deduped_clean, "intermediate/investigations_filtered_pre_deduping.RDS")
+saveRDS(investigations_deduped_clean, "intermediate/investigations_filtered_pre_deduping_1000.RDS")
 
 investigations_deduped_formatch <- investigations_deduped_clean %>%
   group_by(investigations_group_id) %>%
@@ -373,6 +378,22 @@ all_states <- unique(approved_deduped_clean$state_formatch)
 all_states_both <- all_states[(all_states %in% investigations_deduped_clean$st_cd)]
 
 all_states_keep = setdiff(all_states_both, c("PR", "AK", "RI")) # remove ones with very few jobs/no matches
+
+###################
+## some debugging
+fuzzy_matching("TX", jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
+
+for (state in all_states_keep) {
+  fuzzy_matching(state, jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
+}
+
+approved_deduped_formatch %>%
+  filter(state_formatch == "LA")
+
+
+##################
+
+
 
 RUN_FULL_MATCH = TRUE
 if(RUN_FULL_MATCH){
@@ -440,7 +461,6 @@ matchres_allinvest_fill = matchres_allinvest %>% group_by(investigations_group_i
 ### check: look at values for investigation added in
 test_investigation = investigations_torbind %>% slice(1) %>% pull(investigations_group_id)
 head(investigations_toadd_wjobid %>% filter(investigations_group_id %in% test_investigation))
-View(matchres_allinvest_fill %>% filter(investigations_group_id %in% test_investigation) %>% select(contains("id")))
 
 #################
 # Add duplicates back in: jobs
@@ -490,7 +510,7 @@ list_of_dfs_to_rbind <- list()
 
 # for each group_id that matched to an investigation,
 for (group_id in unique(job_groups_with_investigations_df$jobs_group_id))
-  { 
+{ 
   
   # isolate the investigations that matched to this jobs_group_id
   temp_data <- matchres_allinvest_fill %>%
@@ -527,14 +547,14 @@ for (group_id in unique(job_groups_with_investigations_df$jobs_group_id))
     investigations_cols = cols_toadd
     reduped_investigation_fill = reduped_investigation %>%
       fill(investigations_cols, .direction = "downup")
-
+    
     
     # then bind these back onto "temp_data", updating it
     # global/local issue? 
     rbound_df <<- rbind.data.frame(rbound_df, reduped_investigation_fill)
     
     # i dont think this will include the jobs that were not removed- do we need to merge on ?
-
+    
   }
   
   # update the vector
@@ -546,78 +566,6 @@ saveRDS(list_of_dfs_to_rbind, "intermediate/list_of_dfs_to_rbind.RDS")
 # bind these all together
 all_jobs_with_investigations <- do.call(rbind.data.frame, list_of_dfs_to_rbind)
 
-# check that the output is as expected:
-# choose 3 jobs that had investigations and confirm the re-duplication was correct
-
-test_df <- job_groups_with_investigations_df[sample(nrow(job_groups_with_investigations_df), 3), ]
-
-# Check the first
-# grab its group_id
-id_1 <- test_df$jobs_group_id[1]
-
-# see if it had any duplicates
-View(approved_deduped_clean %>%
-  filter(jobs_group_id == id_1)) # it did not
-
-# see how many investigations it mapped to
-View(matchres_allinvest_fill %>%
-  filter(jobs_group_id == id_1)) # just 1
-
-# make sure we just get one row in re-duplication
-View(all_jobs_with_investigations %>%
-  filter(jobs_group_id == id_1)) # we do
-
-# Check the second
-# grab its group_id
-id_2 <- test_df$jobs_group_id[2]
-
-# see if it had any duplicates
-View(approved_deduped_clean %>%
-  filter(jobs_group_id == id_2)) # 12 duplicates
-
-# see how many investigations it mapped to
-View(matchres_allinvest_fill %>%
-  filter(jobs_group_id == id_2)) # just 1
-
-# make sure we get 13 rows in re-duplication, and that they're filled correctly
-View(all_jobs_with_investigations %>%
-  filter(jobs_group_id == id_2)) # we do
-
-# Check the third
-# grab its group_id
-id_3 <- test_df$jobs_group_id[3]
-
-# see if it had any duplicates
-View(approved_deduped_clean %>%
-  filter(jobs_group_id == id_3)) # 8 duplicates
-
-# see how many investigations it mapped to
-View(matchres_allinvest_fill %>%
-  filter(jobs_group_id == id_3)) # just 1
-
-# make sure we get 9 rows during re-duplication, and they are filled correctly
-View(all_jobs_with_investigations %>%
-  filter(jobs_group_id == id_3)) # we do
-
-# find one with multiple investigations, no duplicates
-matchres_allinvest_fill %>%
-  group_by(jobs_row_id) %>%
-  summarize(n = n()) %>%
-  arrange(-n)
-
-# now lets look for one with duplicates and multiple investigations
-id_4 <- "1378_3"
-
-View(approved_deduped_clean %>%
-  filter(jobs_group_id == id_4)) # 24 duplicates
-
-# see how many investigations it mapped to
-View(matchres_allinvest_fill %>%
-  filter(jobs_group_id == id_4)) # 11 investigations
-
-# make sure we get 275 rows during re-duplication, and they are filled correctly
-test <- all_jobs_with_investigations %>%
-  filter(jobs_group_id == id_4) # we do!
 
 
 #################
@@ -630,42 +578,22 @@ jobs_removed_whendedup_no_invest <- jobs_removed_whendedup %>%
 
 # carry out steps from before
 cols_toadd = setdiff(colnames(job_groups_without_investigations_df), colnames(jobs_removed_whendedup_no_invest))
- cols_tocbind = data.frame(matrix(NA, nrow = nrow(jobs_removed_whendedup_no_invest),
- ncol = length(cols_toadd)))
- colnames(cols_tocbind) = cols_toadd
- jobs_removed_whendedup_torbind_no_invest = cbind.data.frame(jobs_removed_whendedup_no_invest,
-                                                    cols_tocbind)
- all_jobs_without_investigations = rbind.data.frame(job_groups_without_investigations_df,
-                                                jobs_removed_whendedup_torbind_no_invest) 
- 
- # need to fill!
- investigations_cols = cols_toadd
- all_jobs_without_investigations = all_jobs_without_investigations %>% group_by(jobs_group_id) %>%
-   fill(investigations_cols, .direction = "downup") %>%
-   ungroup() 
- 
-# quick check
- test_df <- job_groups_without_investigations_df[sample(nrow(job_groups_with_investigations_df), 3), ]
- 
- # Check the second, which has duplicates
- # grab its group_id
- id_2 <- test_df$jobs_group_id[2]
- 
- # see if it had any duplicates
- View(approved_deduped_clean %>%
-        filter(jobs_group_id == id_2)) # it had 7
- 
- # see how many investigations it mapped to
- View(matchres_allinvest_fill %>%
-        filter(jobs_group_id == id_2)) # none
- 
- # make sure we get 8 rows in re-duplication and they are filled correctt
- View(all_jobs_without_investigations %>%
-        filter(jobs_group_id == id_2)) # we do
+cols_tocbind = data.frame(matrix(NA, nrow = nrow(jobs_removed_whendedup_no_invest),
+                                 ncol = length(cols_toadd)))
+colnames(cols_tocbind) = cols_toadd
+jobs_removed_whendedup_torbind_no_invest = cbind.data.frame(jobs_removed_whendedup_no_invest,
+                                                            cols_tocbind)
+all_jobs_without_investigations = rbind.data.frame(job_groups_without_investigations_df,
+                                                   jobs_removed_whendedup_torbind_no_invest) 
 
+# need to fill!
+investigations_cols = cols_toadd
+all_jobs_without_investigations = all_jobs_without_investigations %>% group_by(jobs_group_id) %>%
+  fill(investigations_cols, .direction = "downup") %>%
+  ungroup() 
 
 # finally, combine all jobs with and without investigations
- final_df <- rbind.data.frame(all_jobs_with_investigations, all_jobs_without_investigations)
- 
+final_df <- rbind.data.frame(all_jobs_with_investigations, all_jobs_without_investigations)
+
 saveRDS(final_df, "intermediate/final_df.RDS")
 write.csv(final_df, "intermediate/final_df.csv")
