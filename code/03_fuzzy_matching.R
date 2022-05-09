@@ -116,6 +116,7 @@ merge_matches <- function(jobs_formerge, investigations_formerge, match_object){
 #####################
 # Loading in Data
 #####################
+set.seed(1)
 
 # load in h2a data
 h2a <- read.csv("intermediate/h2a_combined_2014-2021.csv")
