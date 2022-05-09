@@ -9,12 +9,15 @@
 ##########################
 install.packages("tidyverse", lib = "/Users/camguage/Library/R/4.0/library")
 install.packages("stringr", lib = "/Users/camguage/Library/R/4.0/library")
-install.packages("fastLink", lib = "/Users/camguage/Library/R/4.0/library")
+#install.packages("fastLink", lib = "/Users/camguage/Library/R/4.0/library")
 install.packages("readr", lib = "/Users/camguage/Library/R/4.0/library")
 install.packages("data.table", lib = "/Users/camguage/Library/R/4.0/library")
 install.packages("splitstackshape", lib = "/Users/camguage/Library/R/4.0/library")
 install.packages("tidyr", lib = "/Users/camguage/Library/R/4.0/library")
 install.packages("here", lib = "/Users/camguage/Library/R/4.0/library")
+if(!require(devtools)) install.packages("devtools")
+library(devtools)
+install_github("kosukeimai/fastLink",dependencies=TRUE)
 
 library(dplyr)
 library(stringr)
@@ -374,17 +377,40 @@ fuzzy_matching <- function(state, jobs_df, investigations_df){
 # find all states in one of the datasets
 all_states <- unique(approved_deduped_clean$state_formatch)
 
+
+##### 
+
+# try only adding states w at least 10 observations
+
+test_states_1 <- approved_deduped_clean %>%
+  group_by(state_formatch) %>%
+  summarize(n()) %>%
+  filter(`n()` >= 35)
+  
+all_states <- unique(test_states_1$state_formatch)
+
+test_states_2 <- investigations_deduped_clean %>%
+  group_by(st_cd) %>%
+  summarize(n()) %>%
+  filter(`n()` >= 35)
+
+all_states_keep <- all_states[(all_states %in% test_states_2$st_cd)]
+
+#########
+
 # make sure states are in both data sets
+
+
 all_states_both <- all_states[(all_states %in% investigations_deduped_clean$st_cd)]
 
-all_states_keep = setdiff(all_states_both, c("PR", "AK", "RI")) # remove ones with very few jobs/no matches
+all_states_keep = setdiff(all_states_keep, c("FL")) # remove ones with very few jobs/no matches
 
 ###################
 ## some debugging
-fuzzy_matching("WA", jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
+fuzzy_matching("CA", jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
 
 for (state in all_states_keep) {
-  fuzzy_matching(state, jobs_df = approved_deduped_formatch, investigations_df = investigations_deduped_formatch)
+  fuzzy_matching(state, jobs_df = as.data.frame(approved_deduped_formatch), investigations_df = as.data.frame(investigations_deduped_formatch))
 }
 
 investigations_deduped_formatch %>%
@@ -598,4 +624,5 @@ all_jobs_without_investigations = all_jobs_without_investigations %>% group_by(j
 final_df <- rbind.data.frame(all_jobs_with_investigations, all_jobs_without_investigations)
 
 saveRDS(final_df, "intermediate/final_df.RDS")
+write.csv(final_df, "intermediate/final_df.csv")
 write.csv(final_df, "intermediate/final_df.csv")
